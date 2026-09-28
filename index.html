@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111111">
+<meta property="og:title" content="Ferrara Automobili | Auto disponibili">
+<meta property="og:description" content="Scopri le vetture disponibili da Ferrara Automobili.">
+<title>Ferrara Automobili | Auto disponibili</title>
+<style>
+:root{--bg:#f5f5f3;--card:#fff;--text:#151515;--muted:#6b6b6b;--line:#e7e7e4;--accent:#111}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif}
+header{background:#111;color:#fff;padding:24px 18px 20px;position:sticky;top:0;z-index:5}
+.wrap{max-width:1100px;margin:auto}.brand{font-size:12px;letter-spacing:.16em;text-transform:uppercase;opacity:.75}.title{font-size:28px;font-weight:700;margin:7px 0 16px}
+.controls{display:flex;gap:8px;flex-wrap:wrap}.controls input,.controls select{height:44px;border:0;border-radius:10px;padding:0 13px;font-size:15px;background:#fff;color:#111;flex:1;min-width:160px}
+main{padding:20px 14px 40px}.count{font-size:13px;color:var(--muted);margin:0 0 14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 2px 10px #00000008}
+.photo{aspect-ratio:16/10;background:#eee;display:block;width:100%;object-fit:cover}.body{padding:15px}.make{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}h2{font-size:20px;line-height:1.15;margin:5px 0 10px}.price{font-size:22px;font-weight:700;margin-bottom:10px}.specs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}.spec{font-size:12px;background:#f1f1ef;border-radius:7px;padding:6px 8px}.actions{display:flex;gap:7px}.btn{flex:1;text-align:center;text-decoration:none;border-radius:9px;padding:11px 8px;font-size:13px;font-weight:700;border:1px solid #ddd;color:#111;background:#fff}.btn.primary{background:#111;color:#fff;border-color:#111}.empty,.error{background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;color:var(--muted)}
+footer{text-align:center;color:#888;font-size:12px;padding:10px 20px 35px}
+@media(max-width:600px){.title{font-size:24px}.grid{grid-template-columns:1fr}.controls input{min-width:100%}}
+</style>
+</head>
+<body>
+<header>
+<div class="wrap">
+<div class="brand">Ferrara Automobili · Trani</div>
+<div class="title">Le nostre vetture</div>
+<div class="controls">
+<input id="search" type="search" placeholder="Cerca marca, modello…">
+<select id="fuel"><option value="">Alimentazione</option></select>
+<select id="condition"><option value="">Condizione</option><option value="NUOVO">Nuovo</option><option value="KM0">KM0</option><option value="USATO">Usato</option></select>
+</div>
+</div>
+</header>
+<main class="wrap">
+<p class="count" id="count">Caricamento…</p>
+<div class="grid" id="grid"></div>
+<div class="empty" id="empty" hidden>Nessuna vettura corrisponde alla ricerca.</div>
+<div class="error" id="error" hidden>Non riesco a leggere il catalogo. Controlla che il file CSV sia nello stesso repository dell'index.html.</div>
+</main>
+<footer>Ferrara Automobili · Concessionaria ufficiale DR ed EVO · Service ufficiale</footer>
+<script>
+const CSV="ferrara_automobili_meta_29_veicoli_CORRETTO%20(1).csv";
+const FALLBACK="ferrara-placeholder-catalogo.jpg";
+let cars=[];
+const $=id=>document.getElementById(id);
+function parseCSV(text){
+  const rows=[]; let row=[], cell="", quoted=false;
+  for(let i=0;i<text.length;i++){const c=text[i],n=text[i+1];
+    if(c=='"' && quoted && n=='"'){cell+='"';i++;continue}
+    if(c=='"'){quoted=!quoted;continue}
+    if(c==','&&!quoted){row.push(cell);cell="";continue}
+    if((c=='\n'||c=='\r')&&!quoted){if(c=='\r'&&n=='\n')i++;row.push(cell);cell="";if(row.some(x=>x.trim()!=""))rows.push(row);row=[];continue}
+    cell+=c;
+  }
+  if(cell||row.length){row.push(cell);rows.push(row)}
+  const head=rows.shift().map(x=>x.trim());
+  return rows.map(r=>Object.fromEntries(head.map((h,i)=>[h,(r[i]||"").trim()])));
+}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function euro(v){let n=String(v||"").replace(/[^\d,.-]/g,"").replace(/\./g,"").replace(",",".");let x=Number(n);return Number.isFinite(x)?x.toLocaleString("it-IT",{style:"currency",currency:"EUR",maximumFractionDigits:0}):v||""}
+function condition(c){
+ const s=(c.state_of_vehicle||"").toUpperCase();
+ if(s.includes("KM0"))return "KM0"; if(s.includes("NEW")||s.includes("NUOV"))return "NUOVO"; return "USATO";
+}
+function render(){
+ const q=$("search").value.toLowerCase().trim(), fuel=$("fuel").value, cond=$("condition").value;
+ const list=cars.filter(c=>(!q||`${c.make} ${c.model} ${c.title}`.toLowerCase().includes(q))&&(!fuel||c.fuel_type===fuel)&&(!cond||condition(c)===cond));
+ $("count").textContent=`${list.length} vettur${list.length===1?"a":"e"} disponibili`;
+ $("empty").hidden=!!list.length;
+ $("grid").innerHTML=list.map(c=>{
+   const title=c.title||`${c.make||""} ${c.model||""}`.trim();
+   const img=c.image||FALLBACK;
+   const share=`https://wa.me/?text=${encodeURIComponent(`${title}${c.price?" · "+euro(c.price):""} — Scopri la vettura: ${location.href}`)}`;
+   return `<article class="card">
+   <img class="photo" src="${esc(img)}" onerror="this.src='${FALLBACK}'" alt="${esc(title)}" loading="lazy">
+   <div class="body">
+    <div class="make">${esc(c.make||"")}</div><h2>${esc(title)}</h2>
+    <div class="price">${esc(euro(c.price))}</div>
+    <div class="specs">
+      ${c.mileage?`<span class="spec">${esc(Number(String(c.mileage).replace(/\D/g,"")||0).toLocaleString("it-IT"))} km</span>`:""}
+      ${c.fuel_type?`<span class="spec">${esc(c.fuel_type)}</span>`:""}
+      ${c.transmission?`<span class="spec">${esc(c.transmission)}</span>`:""}
+      ${condition(c)?`<span class="spec">${condition(c)}</span>`:""}
+    </div>
+    <div class="actions">
+      ${c.link?`<a class="btn primary" href="${esc(c.link)}" target="_blank" rel="noopener">Dettagli</a>`:""}
+      <a class="btn" href="${share}" target="_blank" rel="noopener">WhatsApp</a>
+    </div>
+   </div></article>`;
+ }).join("");
+}
+async function init(){
+ try{
+  const res=await fetch(CSV+"?v="+Date.now(),{cache:"no-store"});
+  if(!res.ok)throw new Error("CSV");
+  cars=parseCSV(await res.text());
+  const fuels=[...new Set(cars.map(c=>c.fuel_type).filter(Boolean))].sort();
+  fuels.forEach(f=>{const o=document.createElement("option");o.value=f;o.textContent=f;$("fuel").appendChild(o)});
+  render();
+ }catch(e){$("count").textContent="";$("error").hidden=false}
+}
+["search","fuel","condition"].forEach(id=>$(id).addEventListener(id==="search"?"input":"change",render));
+init();
+</script>
+</body>
+</html>
